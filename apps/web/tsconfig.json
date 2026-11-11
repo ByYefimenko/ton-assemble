@@ -16,8 +16,12 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": {
+      "@/*": ["src/*"],
+      "@ton-site-builder/templates/editor": ["../../packages/templates/src/editor.ts"],
+      "@ton-site-builder/templates": ["../../packages/templates/src/index.ts"]
+    }
   },
-  "include": ["src"],
+  "include": ["src", "../../packages/templates/src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

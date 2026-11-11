@@ -1,3 +1,5 @@
+import type { SiteDocument } from '@ton-site-builder/templates/editor';
+
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 function getInitData(): string {
@@ -77,7 +79,7 @@ export function is4nDomain(domain: string): boolean {
 
 export async function createSite(params: {
   domain: string;
-  template: 'linktree' | 'project' | 'for-sale';
+  template: string;
   data: unknown;
   slug?: string;
   accessKey?: string;
@@ -92,7 +94,7 @@ export async function createSite(params: {
 
 export async function updateSite(
   siteId: number,
-  data: { template?: 'linktree' | 'project' | 'for-sale'; data?: unknown; slug?: string | null }
+  data: { template?: string; data?: unknown; slug?: string | null }
 ): Promise<{ ok: boolean; site: unknown }> {
   const res = await fetch(`${API_URL}/api/sites/${siteId}`, {
     method: 'PATCH',
@@ -102,6 +104,20 @@ export async function updateSite(
       data: data.data,
       slug: data.slug,
     }),
+  });
+  return handleRes(res);
+}
+
+/** Renders an unsaved draft for the live preview. */
+export async function renderPreview(
+  doc: SiteDocument,
+  signal?: AbortSignal
+): Promise<{ ok: boolean; html: string }> {
+  const res = await fetch(`${API_URL}/api/preview/render`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ doc }),
+    signal,
   });
   return handleRes(res);
 }
@@ -122,6 +138,8 @@ export async function getSite(siteId: number): Promise<{
     domain_id: number;
     template: string;
     data_json: string;
+    /** Editable v2 document; v1 rows are migrated on read. */
+    doc: SiteDocument | null;
     status: string;
     slug: string | null;
     domainName: string | null;

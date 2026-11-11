@@ -5,7 +5,12 @@ import { Db, DomainRow, SiteRow, UserRow, hashAccessKey } from '@ton-site-builde
 import { TonClientProvider, normalizeTxHash } from '@ton-site-builder/blockchain';
 import { DomainService as TonDomainService } from '@ton-site-builder/dns';
 import { TonStorageService } from '@ton-site-builder/storage';
-import { renderTemplate, TemplateId } from '@ton-site-builder/templates';
+import {
+  renderSiteDocument,
+  renderStoredSite,
+  SiteDocument,
+  toSiteDocument,
+} from '@ton-site-builder/templates';
 import { ZodError } from 'zod';
 import { ApiEnv } from './config';
 import { AppError } from './middleware';
@@ -50,13 +55,19 @@ export class RenderWorkflowService {
   constructor(private readonly db: Db) {}
 
   renderSite(site: SiteRow, includeAttribution = true): string {
-    return renderTemplate(site.template as TemplateId, JSON.parse(site.data_json), {
-      attributionUrl: includeAttribution ? ATTRIBUTION_URL : undefined,
+    return renderStoredSite(site.template, JSON.parse(site.data_json), {
+      attributionUrl: ATTRIBUTION_URL,
+      attribution: includeAttribution,
     });
   }
 
-  validateTemplate(template: TemplateId, data: unknown): void {
-    renderTemplate(template, data, { attributionUrl: ATTRIBUTION_URL });
+  /** Renders an unsaved draft for the builder preview. */
+  renderDraft(doc: SiteDocument): string {
+    return renderSiteDocument(doc, { attributionUrl: ATTRIBUTION_URL });
+  }
+
+  validateTemplate(template: string, data: unknown): void {
+    renderStoredSite(template, data, { attributionUrl: ATTRIBUTION_URL });
   }
 
   getPublishedHtmlForDomain(host: string): string | null {
@@ -64,7 +75,8 @@ export class RenderWorkflowService {
     const domain = this.db.getDomainByName(host);
     if (!domain) return null;
     const site = this.db.getLatestPublishedSiteByDomainId(domain.id);
-    return site ? this.renderSite(site, false) : null;
+    // Set to false to drop the attribution badge from published sites.
+    return site ? this.renderSite(site, true) : null;
   }
 
   getPreviewHtml(siteId: number): string | null {
@@ -151,8 +163,16 @@ export class SiteWorkflowService {
   getSiteForUser(siteId: number, userTelegramId: string) {
     const site = this.requireOwnedSite(siteId, userTelegramId);
     const domain = this.db.getDomainById(site.domain_id);
+    // The builder edits v2 only; the row itself stays as-is until saved.
+    let doc: SiteDocument | null = null;
+    try {
+      doc = toSiteDocument(site.template, JSON.parse(site.data_json));
+    } catch {
+      doc = null;
+    }
     return {
       ...site,
+      doc,
       domainName: domain?.domain ?? null,
       domains: this.db.listDomainsForSite(site.id),
     };
@@ -197,7 +217,7 @@ export class SiteWorkflowService {
     try {
       if (body.template !== undefined || body.data !== undefined) {
         this.render.validateTemplate(
-          body.template ?? (site.template as TemplateId),
+          body.template ?? site.template,
           body.data ?? JSON.parse(site.data_json)
         );
       }
