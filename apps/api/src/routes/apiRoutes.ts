@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { PRESETS } from '@ton-site-builder/templates';
 import { ApiEnv } from '../config';
 import { createTelegramAuth, requireTelegramId } from '../middleware';
 import { BackendServices } from '../services';
@@ -8,6 +9,7 @@ import {
   confirmPublishBodySchema,
   createSiteBodySchema,
   linkWalletBodySchema,
+  renderPreviewBodySchema,
   siteIdParamsSchema,
   updateSiteBodySchema,
   verifyDomainBodySchema,
@@ -92,6 +94,26 @@ export async function registerApiRoutes(
     const query = accountLastTxQuerySchema.parse(request.query);
     return reply.send(await services.wallets.getAccountLastTx(query.address));
   });
+
+  // Renders an unsaved draft for the builder preview. Nothing is persisted;
+  // authenticated so it cannot be used as an open HTML rendering service.
+  app.post('/api/preview/render', { preHandler: telegramAuth }, async (request, reply) => {
+    requireTelegramId(request);
+    const body = renderPreviewBodySchema.parse(request.body);
+    return reply.send({ ok: true, html: services.render.renderDraft(body.doc) });
+  });
+
+  app.get('/api/presets', async (_request, reply) =>
+    reply.send({
+      ok: true,
+      presets: PRESETS.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        glyph: p.glyph,
+      })),
+    })
+  );
 
   app.get('/api/support-config', async () => ({
     donateTonAddress: env.DONATE_TON_ADDRESS ?? null,

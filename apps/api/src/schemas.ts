@@ -1,7 +1,16 @@
 import { z } from 'zod';
-import type { TemplateId } from '@ton-site-builder/templates';
+import { PRESETS, siteSchema } from '@ton-site-builder/templates';
 
-const templateIdSchema = z.enum(['linktree', 'project', 'for-sale'] satisfies [TemplateId, ...TemplateId[]]);
+// The template column labels the preset a site started from; the structure
+// itself lives in data_json. Legacy ids stay accepted for old rows.
+const templateIdSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .refine(
+    (v) => PRESETS.some((p) => p.id === v) || ['linktree', 'project', 'for-sale'].includes(v),
+    { message: 'Unknown template' }
+  );
 
 export const siteIdParamsSchema = z.object({
   siteId: z.coerce.number().int().positive(),
@@ -26,6 +35,11 @@ export const createSiteBodySchema = z.object({
   data: z.record(z.string(), z.unknown()),
   slug: z.string().max(64).optional(),
   accessKey: z.string().optional(),
+});
+
+/** Live preview renders an unsaved document, so validate the full shape. */
+export const renderPreviewBodySchema = z.object({
+  doc: siteSchema,
 });
 
 export const updateSiteBodySchema = z.object({
@@ -54,6 +68,7 @@ export const addSiteDomainBodySchema = z.object({
 
 export type VerifyDomainBody = z.infer<typeof verifyDomainBodySchema>;
 export type CreateSiteBody = z.infer<typeof createSiteBodySchema>;
+export type RenderPreviewBody = z.infer<typeof renderPreviewBodySchema>;
 export type UpdateSiteBody = z.infer<typeof updateSiteBodySchema>;
 export type LinkWalletBody = z.infer<typeof linkWalletBodySchema>;
 export type ConfirmPublishBody = z.infer<typeof confirmPublishBodySchema>;
